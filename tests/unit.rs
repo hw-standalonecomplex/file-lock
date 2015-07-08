@@ -28,7 +28,7 @@ fn invalid_fd() {
         }
 
         assert_eq!(Lock::new(*fd).unlock(), 
-                   Err(Error::Errno(errno::Errno(libc::consts::os::posix88::EBADF))));
+                   Err(errno::Errno(libc::consts::os::posix88::EBADF)));
     }
 }
 
