@@ -6,15 +6,12 @@ use std::os::unix::io::{RawFd, AsRawFd};
 use std::fmt;
 use std::error::Error as ErrorTrait;
 
-use errno;
-use libc;
-
-use functions;
+use fd;
 pub use util::{Mode, Kind, ParseError};
 
 #[derive(Debug)]
 pub enum Error {
-    LockError(PathBuf, functions::Error),
+    LockError(PathBuf, fd::Error),
     IoError(PathBuf, io::Error),
 }
 
@@ -89,7 +86,7 @@ impl Lock {
             Err(io_err) => return Err(Error::IoError(self.path.clone(), io_err))
         };
 
-        match functions::lock(fd, kind, self.mode.clone()) {
+        match fd::lock(fd, kind, self.mode.clone()) {
             Ok(res) => Ok(res),
             Err(lock_err) => Err(Error::LockError(self.path.clone(), lock_err)),
         }
@@ -103,10 +100,15 @@ impl Lock {
         self.any_lock(Kind::NonBlocking)
     }
 
-    pub fn unlock(&mut self) -> Result<(), errno::Errno> {
+    pub fn unlock(&mut self) -> Result<(), Error> {
         match self.file {
-            Some(ref file) => functions::unlock(file.as_raw_fd()),
-            None => Err(errno::Errno(libc::consts::os::posix88::EBADF)),
+            Some(ref file) => match fd::unlock(file.as_raw_fd()) {
+                Ok(res) => Ok(res),
+                Err(lock_err) => Err(Error::LockError(self.path.clone(), lock_err)),
+            },
+            None => Err(Error::IoError(self.path.clone(),
+                                       io::Error::new(io::ErrorKind::NotFound, 
+                                       "unlock() called before lock() or try_lock()").into()))
         }
     }
 

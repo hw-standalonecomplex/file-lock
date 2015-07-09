@@ -24,8 +24,6 @@
 //!
 //!     match Lock::new(f.as_raw_fd()).lock(Kind::NonBlocking, Mode::Write) {
 //!         Ok(_)  => println!("Got lock"),
-//!         Err(Error::WouldBlock)
-//!               => println!("Lock already taken by other process"),
 //!         Err(Error::Errno(i))
 //!               => println!("Got filesystem error {}", i),
 //!     }
@@ -37,6 +35,4 @@ extern crate errno;
 
 pub mod fd;
 pub mod filename;
-pub mod functions;
-
 mod util;

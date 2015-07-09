@@ -1,10 +1,14 @@
 use std::os::unix::io::RawFd;
-
+use std::fmt;
+use std::error::Error as ErrorTrait;
 use errno;
-
+use libc::c_int;
 pub use util::{Kind, Mode, ParseError};
-pub use functions::Error;
-use functions;
+
+extern {
+    fn c_lock(fd: i32, should_block: i32, is_write_lock: i32) -> c_int;
+    fn c_unlock(fd: i32) -> c_int;
+}
 
 
 /// Represents a write lock on a file.
@@ -40,10 +44,8 @@ use functions;
 ///             // 
 ///             println!("Got lock");
 ///         },
-///         Err(Error::WouldBlock)
-///               => println!("Lock already taken by other process"),
 ///         Err(Error::Errno(i))
-///               => println!("Got filesystem error: {}", i),
+///               => println!("Got filesystem error {}", i),
 ///     }
 /// }
 /// ```
@@ -51,6 +53,64 @@ use functions;
 pub struct Lock {
     fd: RawFd,
 }
+
+
+/// Represents the error that occurred while trying to lock or unlock a file.
+#[derive(Debug, Eq, PartialEq)]
+pub enum Error {
+    /// caused when the error occurred at the filesystem layer (see
+    /// [errno](https://crates.io/crates/errno)).
+    Errno(errno::Errno),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match *self {
+            Error::Errno(ref errno)
+                => write!(f, "Lock operation failed: {}", errno)
+        }
+    }
+}
+
+impl ErrorTrait for Error {
+    fn description(&self) -> &str {
+        match *self {
+            Error::Errno(_) 
+                => "Failed to acuire file lock",
+        }
+    }
+}
+
+/// Obtain a write-lock the file-descriptor
+/// 
+/// For an example, please see the documentation of the [`Lock`](struct.Lock.html) structure.
+pub fn lock(fd: RawFd, kind: Kind, mode: Mode) -> Result<(), Error> {
+    let errno = unsafe { c_lock(fd, kind.into(), mode.into()) };
+
+    return match errno {
+       0 => Ok(()),
+       _ => Err(Error::Errno(errno::Errno(errno))),
+    }
+}
+
+/// Unlocks the file held by `Lock`.
+///
+/// In reality, you shouldn't need to call `unlock()`. As `Lock` implements
+/// the `Drop` trait, once the `Lock` reference goes out of scope, `unlock()`
+/// will be called automatically.
+///
+/// For an example, please see the documentation of the [`Lock`](struct.Lock.html) structure.
+pub fn unlock(fd: RawFd) -> Result<(), Error> {
+  unsafe {
+    let errno = c_unlock(fd);
+
+    return match errno {
+       0 => Ok(()),
+       _ => Err(Error::Errno(errno::Errno(errno))),
+    }
+  }
+}
+
 
 impl Lock {
     /// Create a new lock instance from the given file descriptor `fd`.
@@ -66,7 +126,7 @@ impl Lock {
     /// 
     /// For an example, please see the documentation of the [`Lock`](struct.Lock.html) structure.
     pub fn lock(&self, kind: Kind, mode: Mode) -> Result<(), Error> {
-        functions::lock(self.fd, kind.clone(), mode.clone())
+        lock(self.fd, kind.clone(), mode.clone())
     }
 
     /// Unlocks the file held by `Lock`.
@@ -76,8 +136,8 @@ impl Lock {
     /// will be called automatically.
     ///
     /// For an example, please see the documentation of the [`Lock`](struct.Lock.html) structure.
-    pub fn unlock(&self) -> Result<(), errno::Errno> {
-        functions::unlock(self.fd)
+    pub fn unlock(&self) -> Result<(), Error> {
+        unlock(self.fd)
     }
 }
 
