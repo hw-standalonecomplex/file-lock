@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Kind","Represents the kind of lock (e.g. *blocking*, *non-blocking*)"],["Mode","Represents a file access mode, e.g. read or write"]],"struct":[["ParseError",""]]});

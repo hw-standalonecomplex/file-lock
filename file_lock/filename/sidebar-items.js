@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Error",""]],"struct":[["Lock","A type creating a lock file on demand."]]});
